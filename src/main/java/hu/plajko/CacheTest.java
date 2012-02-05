@@ -1,25 +1,18 @@
 package hu.plajko;
 
-import java.util.Random;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 
-import org.joda.time.DateTime;
-import org.joda.time.DurationFieldType;
-import org.joda.time.Seconds;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.joda.time.*;
+import org.slf4j.*;
 
-import com.google.common.base.Stopwatch;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.LoadingCache;
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
+import com.google.common.base.*;
+import com.google.common.cache.*;
+import com.google.common.collect.*;
 
 public class CacheTest {
 
-	private static final int NUM = 500;
+	private static final int NUM = 100;
 	private static final int PROCESS = 10;
 	private static final int LOAD = 200;
 
@@ -42,11 +35,21 @@ public class CacheTest {
 
 	public static void main(String[] args) throws InterruptedException, ExecutionException {
 
+		BiMap<String, String> map = HashBiMap.create();
+
+		map.put("a", "alma");
+		map.put("a", "alma2");
+		
+		log.info(DateTime.now(DateTimeZone.forID("US/Pacific"))+"");
+		log.info(DateTime.now(DateTimeZone.forID("Europe/Budapest"))+"");
+
+		log.info("" + map.get("a"));
+		log.info("" + map.inverse().get("alma2"));
+		
 		Stopwatch timer = new Stopwatch().start();
 		for (int i = 0; i < NUM; i++) {
 			Thread.sleep(PROCESS);
-
-			log.info("key age: " + Seconds.secondsBetween(cache.get(new Random().nextInt(5)), DateTime.now()).get(DurationFieldType.seconds()));
+			log.info("key age: " + Seconds.secondsBetween(cache.get(new Random().nextInt(5)), DateTime.now()).getSeconds());
 		}
 		log.info("time: " + timer.elapsedMillis() + "[" + (NUM * LOAD) + "]");
 		log.info("" + cache.stats());
