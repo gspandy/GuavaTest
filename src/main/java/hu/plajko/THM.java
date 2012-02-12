@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
 public class THM {
 
 	private static final Logger log = LoggerFactory.getLogger(ApproximatorTest.class);
-	private static final NumberFormat nf = new DecimalFormat("0.0####", DecimalFormatSymbols.getInstance(Locale.ENGLISH));
+	private static final NumberFormat nf = new DecimalFormat("0.0##", DecimalFormatSymbols.getInstance(Locale.ENGLISH));
 
 	private static Function THMFunc = new Function() {
 		public double calculate(double Ak, double THM, double periods) {
@@ -37,13 +37,13 @@ public class THM {
 		// THM számolás
 		for (double Ak = 92000.0d; Ak <= 114000d; Ak += 2000.0d) {
 			double calculatedTHM = THMCalculator.findSolution(Ak, null, periods);
-			log.info("Ak: {} - THM: {}", nf.format(Ak), nf.format(calculatedTHM));
+			log.info("Ak: {}\tTHM: {}", nf.format(Ak), nf.format(calculatedTHM));
 		}
 
 		// Törlesztőrészlet számolás
 		for (double THM = 10.8d; THM <= 20.0d; THM += 0.2d) {
 			double calculatedAk = THMCalculator.findSolution(null, THM, periods);
-			log.info("Ak: {} - THM: {}", nf.format(calculatedAk), nf.format(THM));
+			log.info("Ak: {}\tTHM: {}", nf.format(calculatedAk), nf.format(THM));
 		}
 	}
 
@@ -57,13 +57,13 @@ public class THM {
 		// THM számolás
 		for (double Ak = 79000.0d; Ak <= 90000d; Ak += 500.0d) {
 			double calculatedTHM = THMCalculator.findSolution(Ak, null, periods);
-			log.info("Ak: {} - THM: {}", nf.format(Ak), nf.format(calculatedTHM));
+			log.info("Ak: {}\tTHM: {}", nf.format(Ak), nf.format(calculatedTHM));
 		}
 
 		// Törlesztőrészlet számolás
 		for (double THM = 40.0d; THM <= 45.0d; THM += 0.05d) {
 			double calculatedAk = THMCalculator.findSolution(null, THM, periods);
-			log.info("Ak: {} - THM: {}", nf.format(calculatedAk), nf.format(THM));
+			log.info("Ak: {}\tTHM: {}", nf.format(calculatedAk), nf.format(THM));
 		}
 	}
 
