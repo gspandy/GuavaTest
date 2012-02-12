@@ -16,9 +16,9 @@
 			<version>1.6.1</version>
 		</dependency>
 		<dependency>
-			<groupId>org.slf4j</groupId>
-			<artifactId>slf4j-simple</artifactId>
-			<version>1.6.1</version>
+			<groupId>ch.qos.logback</groupId>
+			<artifactId>logback-classic</artifactId>
+			<version>1.0.0</version>
 		</dependency>
 		<dependency>
 			<groupId>joda-time</groupId>
@@ -33,7 +33,6 @@
 				<artifactId>maven-shade-plugin</artifactId>
 				<version>1.5</version>
 				<configuration>
-					<minimizeJar>true</minimizeJar>
 					<transformers>
 						<transformer
 							implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">

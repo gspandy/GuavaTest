@@ -31,7 +31,7 @@ public class CacheTest {
 			.removalListener(new RemovalListener<Integer, Stopwatch>() {
 				public void onRemoval(RemovalNotification<Integer, Stopwatch> notification) {
 					notification.getValue().stop();
-					log.info("key removed: {}", notification);
+					log.debug("key removed: {}", notification);
 				}
 			})//
 			.build(new CacheLoader<Integer, Stopwatch>() {
@@ -61,11 +61,10 @@ public class CacheTest {
 		Random r = new Random(0xcafe);
 		for (int i = 0; i < NUMBER_OF_REQUESTS; i++) {
 			Thread.sleep(PROCESSING_TIME);
-			log.info("key age: {}", cache.get(r.nextInt(5)));
+			log.debug("key age: {}", cache.get(r.nextInt(5)));
 		}
 		log.info("test took {} ms instead of {} ms", timer.elapsedMillis(), NUMBER_OF_REQUESTS * LOADING_TIME);
 		log.info("{}", cache.stats());
-
 	}
 
 }
