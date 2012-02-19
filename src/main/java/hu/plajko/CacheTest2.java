@@ -1,6 +1,9 @@
 package hu.plajko;
 
-import java.lang.ref.WeakReference;
+import hu.plajko.cache.ContextedLoadingCache;
+import hu.plajko.cache.ContextedLoadingCache.ContextedCacheLoader;
+import hu.plajko.cache.ContextedLoadingCache.ContextedRemovalListener;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -14,11 +17,6 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.CacheLoader;
-import com.google.common.cache.CacheStats;
-import com.google.common.cache.LoadingCache;
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
 
 public class CacheTest2 {
 
@@ -29,97 +27,32 @@ public class CacheTest2 {
 		}
 	}
 
-	public static abstract class ContextedCacheLoader<K, V, C> extends CacheLoader<K, V> {
-
-		private WeakReference<C> contextReference = null;
-
-		private C getContext() {
-			C context = this.contextReference.get();
-			if (context == null)
-				throw new IllegalStateException("context is null");
-			return context;
-		}
-
-		@Override
-		public Map<K, V> loadAll(Iterable<? extends K> keys) throws Exception {
-			return loadAll(getContext(), keys);
-		}
-
-		@Override
-		public V load(K key) throws Exception {
-			return load(getContext(), key);
-		}
-
-		public Map<K, V> loadAll(C context, Iterable<? extends K> keys) throws Exception {
-			return super.loadAll(keys);
-		}
-
-		public abstract V load(C context, K key) throws Exception;
-
-		public void setContext(C context) {
-			this.contextReference = new WeakReference<C>(context);
-		}
-	}
-
-	public static abstract class ContextedLoadingCache<K, V, C> {
-		private LoadingCache<K, V> cacheInstance = null;
-		private ContextedCacheLoader<K, V, C> cacheLoader = null;
-
-		public ContextedLoadingCache(final ContextedCacheLoader<K, V, C> cacheLoader) {
-			this.cacheLoader = cacheLoader;
-			this.cacheInstance = getCacheBuilder().build(cacheLoader);
-		}
-
-		public Map<K, V> getAll(C context, Iterable<? extends K> keys) throws Exception {
-			this.cacheLoader.setContext(context);
-			return this.cacheInstance.getAll(keys);
-		}
-
-		public V get(C context, K key) throws Exception {
-			this.cacheLoader.setContext(context);
-			return this.cacheInstance.get(key);
-		}
-
-		protected abstract CacheBuilder<K, V> getCacheBuilder();
-
-		public CacheStats stats() {
-			return this.cacheInstance.stats();
-		}
-
-	}
-
-	private static ContextedLoadingCache<String, String, LoaderContext> CACHE = //
+	private static ContextedLoadingCache<String, String, LoaderContext> CACHE2 = //
 	new ContextedLoadingCache<String, String, LoaderContext>(//
+			CacheBuilder.newBuilder()//
+					.maximumSize(1000)//
+					.expireAfterWrite(1, TimeUnit.SECONDS),//
 			new ContextedCacheLoader<String, String, LoaderContext>() {
-
 				@Override
+				public String load(LoaderContext context, String key) throws Exception {
+					System.out.println(Thread.currentThread().getName() + " - " + "load " + key);
+					return context.getValue();
+				}
+
 				public Map<String, String> loadAll(LoaderContext context, Iterable<? extends String> keys) throws Exception {
 					System.out.println(Thread.currentThread().getName() + " - " + "loadall " + keys);
 					return super.loadAll(context, keys);
 				}
 
+			},//
+			new ContextedRemovalListener<String, String, LoaderContext>() {
+
 				@Override
-				public String load(LoaderContext context, String key) throws Exception {
-					System.out.println(Thread.currentThread().getName() + " - " + "load " + key);
-					Thread.sleep(100);
-					return context.getValue();
+				public void onRemoval(LoaderContext context, String key, String value) {
+					System.out.println("remove " + key + "=" + value);
+
 				}
-
-			}) {
-
-		@Override
-		protected CacheBuilder<String, String> getCacheBuilder() {
-			return CacheBuilder.newBuilder()//
-					.maximumSize(1000)//
-					.expireAfterWrite(1, TimeUnit.SECONDS)//
-					.removalListener(new RemovalListener<String, String>() {
-						@Override
-						public void onRemoval(RemovalNotification<String, String> notification) {
-							System.out.println("remove " + notification);
-						}
-					});
-		}
-	};
+			});
 
 	public static void main(String[] args) throws Exception {
 
@@ -133,7 +66,7 @@ public class CacheTest2 {
 		});
 
 		List<FutureTask<String>> tasks = new ArrayList<FutureTask<String>>();
-		for (int i = 0; i < 1000; i++) {
+		for (int i = 0; i < 200; i++) {
 			FutureTask<String> task = new FutureTask<String>(new Callable<String>() {
 
 				private LoaderContext context = new LoaderContext();
@@ -160,7 +93,7 @@ public class CacheTest2 {
 
 					System.out.println(Thread.currentThread().getName() + " - req: " + req);
 					Stopwatch timer = new Stopwatch().start();
-					String result = Thread.currentThread().getName() + " - result: " + CACHE.getAll(this.context, req);
+					String result = Thread.currentThread().getName() + " - result: " + CACHE2.getAll(this.context, req);
 					long time = timer.stop().elapsedMillis();
 					return result + " (" + time + ")";
 				}
@@ -174,6 +107,7 @@ public class CacheTest2 {
 			System.out.println(task.get());
 
 		e.shutdown();
-		System.out.println(CACHE.stats());
+		System.out.println(CACHE2.stats());
+
 	}
 }
