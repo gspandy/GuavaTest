@@ -1,5 +1,6 @@
 package hu.plajko.cache;
 
+import java.lang.ref.WeakReference;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.Iterator;
@@ -62,7 +63,7 @@ public class ContextedLoadingCache<K, V, C> {
 		public ContextedKey(K key, C context) {
 			super();
 			this.key = key;
-			this.context = context;
+			this.context = new WeakReference<C>(context);
 		}
 
 		public K getKey() {
@@ -70,11 +71,11 @@ public class ContextedLoadingCache<K, V, C> {
 		}
 
 		public C getContext() {
-			return context;
+			return context.get();
 		}
 
 		private K key;
-		private C context;
+		private WeakReference<C> context;
 	}
 
 	private LoadingCache<ContextedKey<K, C>, V> cacheInstance = null;
@@ -91,10 +92,6 @@ public class ContextedLoadingCache<K, V, C> {
 					}
 				})//
 				.build(cacheLoader);
-	}
-
-	public V get(C context, K key) throws ExecutionException {
-		return cacheInstance.get(new ContextedKey<K, C>(key, context));
 	}
 
 	private static <K, V, C> Iterable<ContextedKey<K, C>> transformIterable(final C context, final Iterable<? extends K> keys) {
@@ -171,6 +168,10 @@ public class ContextedLoadingCache<K, V, C> {
 				};
 			}
 		};
+	}
+
+	public V get(C context, K key) throws ExecutionException {
+		return cacheInstance.get(new ContextedKey<K, C>(key, context));
 	}
 
 	public Map<K, V> getAll(final C context, final Iterable<? extends K> keys) throws Exception {

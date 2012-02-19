@@ -35,10 +35,12 @@ public class CacheTest2 {
 			new ContextedCacheLoader<String, String, LoaderContext>() {
 				@Override
 				public String load(LoaderContext context, String key) throws Exception {
+					Thread.sleep(400 + new Random().nextInt(500));
 					System.out.println(Thread.currentThread().getName() + " - " + "load " + key);
 					return context.getValue();
 				}
 
+				// optional
 				public Map<String, String> loadAll(LoaderContext context, Iterable<? extends String> keys) throws Exception {
 					System.out.println(Thread.currentThread().getName() + " - " + "loadall " + keys);
 					return super.loadAll(context, keys);
