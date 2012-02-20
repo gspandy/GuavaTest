@@ -31,12 +31,49 @@ public class ContextedLoadingCache<K, V, C> {
 		}
 
 		public Map<K, V> loadAll(final C context, final Iterable<? extends K> keys) throws Exception {
-			return transformMap(context, loadAll(transformIterable(context, keys)));
+			return transformMapKeys(//
+					super.loadAll(transformIterableValues(keys,//
+							new ValueTransformer<K, ContextedKey<K, C>>() {
+								@Override
+								public ContextedKey<K, C> transform(K key) {
+									return new ContextedKey<K, C>(key, context);
+								}
+							})),//
+					new ValueTransformer<ContextedKey<K, C>, K>() {
+						@Override
+						public K transform(ContextedKey<K, C> value) {
+							return value.getKey();
+						}
+					});
+		}
+
+		@Override
+		public final Map<ContextedKey<K, C>, V> loadAll(Iterable<? extends ContextedKey<K, C>> keys) throws Exception {
+			if (keys != null && keys.iterator().hasNext()) {
+				final C context = keys.iterator().next().getContext();
+				return transformMapKeys(//
+						loadAll(context, transformIterableValues(keys,//
+								new ValueTransformer<ContextedKey<K, C>, K>() {
+									@Override
+									public K transform(ContextedKey<K, C> value) {
+										return value.getKey();
+									}
+								})),//
+						new ValueTransformer<K, ContextedKey<K, C>>() {
+							@Override
+							public ContextedKey<K, C> transform(K value) {
+								return new ContextedKey<K, C>(value, context);
+							}
+						});
+			} else {
+				return null;
+			}
 		}
 
 	}
 
 	private static class ContextedKey<K, C> {
+
 		@Override
 		public int hashCode() {
 			return (key == null) ? 0 : key.hashCode();
@@ -94,20 +131,20 @@ public class ContextedLoadingCache<K, V, C> {
 				.build(cacheLoader);
 	}
 
-	private static <K, V, C> Iterable<ContextedKey<K, C>> transformIterable(final C context, final Iterable<? extends K> keys) {
-		return new Iterable<ContextedKey<K, C>>() {
+	private static <T1, T2> Iterable<T2> transformIterableValues(final Iterable<? extends T1> keys, final ValueTransformer<T1, T2> valueTransofrmer) {
+		return new Iterable<T2>() {
 			@Override
-			public Iterator<ContextedKey<K, C>> iterator() {
-				final Iterator<? extends K> it = keys.iterator();
-				return new Iterator<ContextedKey<K, C>>() {
+			public Iterator<T2> iterator() {
+				final Iterator<? extends T1> it = keys.iterator();
+				return new Iterator<T2>() {
 					@Override
 					public boolean hasNext() {
 						return it.hasNext();
 					}
 
 					@Override
-					public ContextedKey<K, C> next() {
-						return new ContextedKey<K, C>(it.next(), context);
+					public T2 next() {
+						return valueTransofrmer.transform(it.next());
 					}
 
 					@Override
@@ -119,37 +156,41 @@ public class ContextedLoadingCache<K, V, C> {
 		};
 	}
 
-	private static <K, V, C> Map<K, V> transformMap(final C context, final Map<ContextedKey<K, C>, V> map) {
-		return new AbstractMap<K, V>() {
+	private static interface ValueTransformer<T1, T2> {
+		public T2 transform(T1 value);
+	}
+
+	private static <K1, K2, V> Map<K2, V> transformMapKeys(final Map<K1, V> map, final ValueTransformer<K1, K2> keyTransformer) {
+		return new AbstractMap<K2, V>() {
 			@Override
-			public Set<Map.Entry<K, V>> entrySet() {
-				return new AbstractSet<Map.Entry<K, V>>() {
+			public Set<Map.Entry<K2, V>> entrySet() {
+				return new AbstractSet<Map.Entry<K2, V>>() {
 					@Override
-					public Iterator<Map.Entry<K, V>> iterator() {
-						final Iterator<Entry<ContextedKey<K, C>, V>> it = map.entrySet().iterator();
-						return new Iterator<Map.Entry<K, V>>() {
+					public Iterator<Map.Entry<K2, V>> iterator() {
+						final Iterator<Entry<K1, V>> it = map.entrySet().iterator();
+						return new Iterator<Map.Entry<K2, V>>() {
 							@Override
 							public boolean hasNext() {
 								return it.hasNext();
 							}
 
 							@Override
-							public Map.Entry<K, V> next() {
-								final Entry<ContextedKey<K, C>, V> contextedEntry = it.next();
-								return new Map.Entry<K, V>() {
+							public Map.Entry<K2, V> next() {
+								final Entry<K1, V> oldEntry = it.next();
+								return new Map.Entry<K2, V>() {
 									@Override
-									public K getKey() {
-										return contextedEntry.getKey().getKey();
+									public K2 getKey() {
+										return keyTransformer.transform(oldEntry.getKey());
 									}
 
 									@Override
 									public V getValue() {
-										return contextedEntry.getValue();
+										return oldEntry.getValue();
 									}
 
 									@Override
 									public V setValue(V value) {
-										return contextedEntry.setValue(value);
+										return oldEntry.setValue(value);
 									}
 								};
 							}
@@ -175,7 +216,20 @@ public class ContextedLoadingCache<K, V, C> {
 	}
 
 	public Map<K, V> getAll(final C context, final Iterable<? extends K> keys) throws Exception {
-		return transformMap(context, this.cacheInstance.getAll(transformIterable(context, keys)));
+		return transformMapKeys(//
+				this.cacheInstance.getAll(transformIterableValues(keys,//
+						new ValueTransformer<K, ContextedKey<K, C>>() {
+							@Override
+							public ContextedKey<K, C> transform(K key) {
+								return new ContextedKey<K, C>(key, context);
+							}
+						})),//
+				new ValueTransformer<ContextedKey<K, C>, K>() {
+					@Override
+					public K transform(ContextedKey<K, C> value) {
+						return value.getKey();
+					}
+				});
 	}
 
 	public CacheStats stats() {

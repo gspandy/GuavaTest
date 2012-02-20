@@ -5,6 +5,8 @@ import hu.plajko.cache.ContextedLoadingCache.ContextedCacheLoader;
 import hu.plajko.cache.ContextedLoadingCache.ContextedRemovalListener;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -15,6 +17,7 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Stopwatch;
 import com.google.common.cache.CacheBuilder;
 
@@ -27,30 +30,44 @@ public class CacheTest2 {
 		}
 	}
 
-	private static ContextedLoadingCache<String, String, LoaderContext> CACHE2 = //
-	new ContextedLoadingCache<String, String, LoaderContext>(//
+	public static class ValueClass {
+		private Stopwatch timer = null;
+		private String name = null;
+
+		public ValueClass(String name) {
+			this.name = name;
+			this.timer = new Stopwatch().start();
+		}
+
+		@Override
+		public String toString() {
+			return name + "(" + timer + ")";
+		}
+	}
+
+	private static ContextedLoadingCache<String, ValueClass, LoaderContext> CACHE = //
+	new ContextedLoadingCache<String, ValueClass, LoaderContext>(//
 			CacheBuilder.newBuilder()//
 					.maximumSize(1000)//
 					.expireAfterWrite(1, TimeUnit.SECONDS),//
-			new ContextedCacheLoader<String, String, LoaderContext>() {
+			new ContextedCacheLoader<String, ValueClass, LoaderContext>() {
 				@Override
-				public String load(LoaderContext context, String key) throws Exception {
-					Thread.sleep(400 + new Random().nextInt(500));
+				public ValueClass load(LoaderContext context, String key) throws Exception {
 					System.out.println(Thread.currentThread().getName() + " - " + "load " + key);
-					return context.getValue();
+					return new ValueClass(context.getValue());
 				}
 
 				// optional
-				public Map<String, String> loadAll(LoaderContext context, Iterable<? extends String> keys) throws Exception {
-					System.out.println(Thread.currentThread().getName() + " - " + "loadall " + keys);
+				public Map<String, ValueClass> loadAll(LoaderContext context, Iterable<? extends String> keys) throws Exception {
+					System.out.println(Thread.currentThread().getName() + " - " + "loadall [" + Joiner.on(", ").join(keys) + "]");
 					return super.loadAll(context, keys);
 				}
 
 			},//
-			new ContextedRemovalListener<String, String, LoaderContext>() {
+			new ContextedRemovalListener<String, ValueClass, LoaderContext>() {
 
 				@Override
-				public void onRemoval(LoaderContext context, String key, String value) {
+				public void onRemoval(LoaderContext context, String key, ValueClass value) {
 					System.out.println("remove " + key + "=" + value);
 
 				}
@@ -63,9 +80,11 @@ public class CacheTest2 {
 
 			@Override
 			public Thread newThread(Runnable r) {
-				return new Thread(r, "session" + counter++);
+				return new Thread(r, "user" + counter++);
 			}
 		});
+
+		final List<String> requestStrings = Arrays.asList(new String[] { "a", "b", "c", "d", "e", "f", "g", "h", "i", "j" });
 
 		List<FutureTask<String>> tasks = new ArrayList<FutureTask<String>>();
 		for (int i = 0; i < 200; i++) {
@@ -76,26 +95,14 @@ public class CacheTest2 {
 				@Override
 				public String call() throws Exception {
 					Random r = new Random();
-					Thread.sleep(400 + r.nextInt(500));
+					Thread.sleep(200 + r.nextInt(500));
 
-					List<String> req = new ArrayList<String>();
-					if (r.nextBoolean())
-						req.add("a");
-
-					if (r.nextBoolean())
-						req.add("b");
-
-					if (r.nextBoolean())
-						req.add("c");
-
-					if (r.nextBoolean())
-						req.add("d");
-					else
-						req.add("e");
+					Collections.shuffle(requestStrings);
+					List<String> req = requestStrings.subList(0, 1 + r.nextInt(requestStrings.size() - 1));
 
 					System.out.println(Thread.currentThread().getName() + " - req: " + req);
 					Stopwatch timer = new Stopwatch().start();
-					String result = Thread.currentThread().getName() + " - result: " + CACHE2.getAll(this.context, req);
+					String result = Thread.currentThread().getName() + " - result: " + CACHE.getAll(this.context, req);
 					long time = timer.stop().elapsedMillis();
 					return result + " (" + time + ")";
 				}
@@ -109,7 +116,7 @@ public class CacheTest2 {
 			System.out.println(task.get());
 
 		e.shutdown();
-		System.out.println(CACHE2.stats());
+		System.out.println(CACHE.stats());
 
 	}
 }
