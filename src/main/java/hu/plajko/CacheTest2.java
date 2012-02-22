@@ -35,8 +35,10 @@ public class CacheTest2 {
 
 	public static class LoaderContext {
 
+		private String creator = Thread.currentThread().getName();
+
 		public String getValue() {
-			return Thread.currentThread().getName();
+			return creator;
 		}
 	}
 
@@ -71,7 +73,7 @@ public class CacheTest2 {
 				@Override
 				public ValueClass load(String key) throws Exception {
 					log.info("{} - load {}", Thread.currentThread().getName(), key);
-					return new ValueClass("static");
+					return new ValueClass("???");
 				}
 
 				// optional
@@ -142,6 +144,7 @@ public class CacheTest2 {
 	}
 
 	private static void test(final CacheTester<String, ValueClass> tester) throws InterruptedException, ExecutionException {
+		// do parallel testing
 		ExecutorService e = Executors.newFixedThreadPool(10, new ThreadFactory() {
 			private int counter = 0;
 
@@ -152,18 +155,19 @@ public class CacheTest2 {
 		});
 
 		final List<String> keys = new ArrayList<String>();
-		for (int i = 0; i < 10; i++) {
+		for (int i = 0; i < 100; i++) {
 			keys.add("key" + i);
 		}
 
 		List<FutureTask<String>> tasks = new ArrayList<FutureTask<String>>();
-		for (int i = 0; i < 100; i++) {
+		for (int i = 0; i < 1000; i++) {
 			FutureTask<String> task = new FutureTask<String>(new Callable<String>() {
 				@Override
 				public String call() throws Exception {
 					Random r = new Random();
 					Thread.sleep(100 + r.nextInt(300));
 
+					// generate a random request
 					Collections.shuffle(keys);
 					List<String> req = keys.subList(0, 1 + r.nextInt(keys.size() - 1));
 
