@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
-import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.CacheStats;
 import com.google.common.cache.LoadingCache;
@@ -17,8 +16,19 @@ import com.google.common.cache.RemovalNotification;
 
 public class ContextedLoadingCache<K, V, C> {
 
-	public static interface ContextedRemovalListener<K, V, C> {
+	private LoadingCache<ContextedKey<K, C>, V> cacheInstance = null;
+
+	private static interface ContextedRemovalListenerIf<K, V, C> extends RemovalListener<ContextedKey<K, C>, V> {
 		public void onRemoval(C context, K key, V value);
+	}
+
+	public static abstract class ContextedRemovalListener<K, V, C> implements ContextedRemovalListenerIf<K, V, C> {
+
+		@Override
+		public void onRemoval(RemovalNotification<ContextedKey<K, C>, V> notification) {
+			onRemoval(notification.getKey().getContext(), notification.getKey().getKey(), notification.getValue());
+		}
+
 	}
 
 	public static abstract class ContextedCacheLoader<K, V, C> extends CacheLoader<ContextedKey<K, C>, V> {
@@ -47,29 +57,39 @@ public class ContextedLoadingCache<K, V, C> {
 					});
 		}
 
-		@Override
-		public final Map<ContextedKey<K, C>, V> loadAll(Iterable<? extends ContextedKey<K, C>> keys) throws Exception {
-			if (keys != null && keys.iterator().hasNext()) {
-				final C context = keys.iterator().next().getContext();
-				return transformMapKeys(//
-						loadAll(context, transformIterableValues(keys,//
-								new ValueTransformer<ContextedKey<K, C>, K>() {
-									@Override
-									public K transform(ContextedKey<K, C> value) {
-										return value.getKey();
-									}
-								})),//
-						new ValueTransformer<K, ContextedKey<K, C>>() {
-							@Override
-							public ContextedKey<K, C> transform(K value) {
-								return new ContextedKey<K, C>(value, context);
-							}
-						});
-			} else {
-				return null;
+		private class ContextHolder {
+			private C context;
+
+			public C getContext() {
+				return context;
+			}
+
+			public void setContext(C context) {
+				this.context = context;
 			}
 		}
 
+		@Override
+		public final Map<ContextedKey<K, C>, V> loadAll(Iterable<? extends ContextedKey<K, C>> keys) throws Exception {
+			final ContextHolder cHolder = new ContextHolder();
+			if (keys != null && keys.iterator().hasNext())
+				cHolder.setContext(keys.iterator().next().getContext());
+			return transformMapKeys(//
+					loadAll(cHolder.getContext(), transformIterableValues(keys,//
+							new ValueTransformer<ContextedKey<K, C>, K>() {
+								@Override
+								public K transform(ContextedKey<K, C> value) {
+									return value.getKey();
+								}
+							})),//
+					new ValueTransformer<K, ContextedKey<K, C>>() {
+						@Override
+						public ContextedKey<K, C> transform(K value) {
+							return new ContextedKey<K, C>(value, cHolder.getContext());
+						}
+					});
+
+		}
 	}
 
 	private static class ContextedKey<K, C> {
@@ -88,7 +108,7 @@ public class ContextedLoadingCache<K, V, C> {
 			if (getClass() != obj.getClass())
 				return false;
 			@SuppressWarnings("unchecked")
-			ContextedLoadingCache.ContextedKey<K, C> other = (ContextedLoadingCache.ContextedKey<K, C>) obj;
+			ContextedKey<K, C> other = (ContextedKey<K, C>) obj;
 			if (key == null) {
 				if (other.key != null)
 					return false;
@@ -115,20 +135,8 @@ public class ContextedLoadingCache<K, V, C> {
 		private WeakReference<C> context;
 	}
 
-	private LoadingCache<ContextedKey<K, C>, V> cacheInstance = null;
-
-	@SuppressWarnings("unchecked")
-	public ContextedLoadingCache(@SuppressWarnings("rawtypes") CacheBuilder builder, ContextedCacheLoader<K, V, C> cacheLoader, final ContextedRemovalListener<K, V, C> removalListener) {
-		this.cacheInstance = builder//
-				.removalListener(new RemovalListener<ContextedKey<K, C>, V>() {
-
-					@Override
-					public void onRemoval(RemovalNotification<ContextedKey<K, C>, V> notification) {
-						removalListener.onRemoval(notification.getKey().getContext(), notification.getKey().getKey(), notification.getValue());
-
-					}
-				})//
-				.build(cacheLoader);
+	public ContextedLoadingCache(LoadingCache<ContextedKey<K, C>, V> cacheInstance) {
+		this.cacheInstance = cacheInstance;
 	}
 
 	private static <T1, T2> Iterable<T2> transformIterableValues(final Iterable<? extends T1> keys, final ValueTransformer<T1, T2> valueTransofrmer) {
