@@ -1,6 +1,5 @@
 package hu.plajko.cache;
 
-import java.lang.ref.WeakReference;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.Iterator;
@@ -16,6 +15,7 @@ import com.google.common.cache.RemovalNotification;
 
 public class ContextedLoadingCache<K, V, C> {
 
+	// wrapped cache
 	private LoadingCache<ContextedKey<K, C>, V> cacheInstance = null;
 
 	private static interface ContextedRemovalListenerIf<K, V, C> extends RemovalListener<ContextedKey<K, C>, V> {
@@ -25,7 +25,7 @@ public class ContextedLoadingCache<K, V, C> {
 	public static abstract class ContextedRemovalListener<K, V, C> implements ContextedRemovalListenerIf<K, V, C> {
 
 		@Override
-		public void onRemoval(RemovalNotification<ContextedKey<K, C>, V> notification) {
+		public final void onRemoval(RemovalNotification<ContextedKey<K, C>, V> notification) {
 			onRemoval(notification.getKey().getContext(), notification.getKey().getKey(), notification.getValue());
 		}
 
@@ -120,7 +120,7 @@ public class ContextedLoadingCache<K, V, C> {
 		public ContextedKey(K key, C context) {
 			super();
 			this.key = key;
-			this.context = new WeakReference<C>(context);
+			this.context = context;
 		}
 
 		public K getKey() {
@@ -128,11 +128,11 @@ public class ContextedLoadingCache<K, V, C> {
 		}
 
 		public C getContext() {
-			return context.get();
+			return context;
 		}
 
 		private K key;
-		private WeakReference<C> context;
+		private C context;
 	}
 
 	public ContextedLoadingCache(LoadingCache<ContextedKey<K, C>, V> cacheInstance) {

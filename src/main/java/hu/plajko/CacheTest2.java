@@ -33,15 +33,17 @@ public class CacheTest2 {
 
 	private static final Logger log = LoggerFactory.getLogger(CacheTest2.class);
 
+	// a sample context class
 	public static class LoaderContext {
 
-		private String creator = Thread.currentThread().getName();
+		private String constructorThread = Thread.currentThread().getName();
 
 		public String getValue() {
-			return creator;
+			return constructorThread;
 		}
 	}
 
+	// a sample value class for the cache
 	public static class ValueClass {
 		private Stopwatch timer = null;
 		private String name = null;
@@ -57,55 +59,63 @@ public class CacheTest2 {
 		}
 	}
 
+	private static final int MAXSIZE = 1000;
+	private static final int TIME = 30;
+	private static final TimeUnit TIMEUNIT = TimeUnit.MILLISECONDS;
+
+	// original LoadingCache construction
 	private static LoadingCache<String, ValueClass> cache = //
 	CacheBuilder.newBuilder()//
-			.maximumSize(1000)//
-			.expireAfterWrite(2, TimeUnit.SECONDS)//
-			.removalListener(//
+			.maximumSize(MAXSIZE)//
+			.expireAfterWrite(TIME, TIMEUNIT)//
+			.removalListener(// optional removal listener
 					new RemovalListener<String, ValueClass>() {
 						@Override
 						public void onRemoval(RemovalNotification<String, ValueClass> notification) {
-							log.info("remove {}", notification);
+							log.debug("remove {}", notification);
 						}
 					})//
 			.build(//
 			new CacheLoader<String, ValueClass>() {
 				@Override
 				public ValueClass load(String key) throws Exception {
-					log.info("{} - load {}", Thread.currentThread().getName(), key);
+					log.debug("{} - load {}", Thread.currentThread().getName(), key);
 					return new ValueClass("???");
 				}
 
-				// optional
+				// optional override of the loadAll method
+				@Override
 				public Map<String, ValueClass> loadAll(Iterable<? extends String> keys) throws Exception {
-					log.info("{} - loadAll [{}]", Thread.currentThread().getName(), Joiner.on(", ").join(keys));
+					log.debug("{} - loadAll [{}]", Thread.currentThread().getName(), Joiner.on(", ").join(keys));
 					return super.loadAll(keys);
 				}
 			});
 
+	// "contexted" LoadingCache construction
 	private static ContextedLoadingCache<String, ValueClass, LoaderContext> contextedCache = //
 	new ContextedLoadingCache<String, ValueClass, LoaderContext>(//
 			CacheBuilder.newBuilder()//
-					.maximumSize(1000)//
-					.expireAfterWrite(2, TimeUnit.SECONDS)//
-					.removalListener(//
+					.maximumSize(MAXSIZE)//
+					.expireAfterWrite(TIME, TIMEUNIT)//
+					.removalListener(// optional removal listener
 							new ContextedRemovalListener<String, ValueClass, LoaderContext>() {
 								@Override
 								public void onRemoval(LoaderContext context, String key, ValueClass value) {
-									log.info("remove {}={}", key, value);
+									log.debug("remove {}={}", key, value);
 								}
 							})//
 					.build(//
 					new ContextedCacheLoader<String, ValueClass, LoaderContext>() {
 						@Override
 						public ValueClass load(LoaderContext context, String key) throws Exception {
-							log.info("{} - load {}", Thread.currentThread().getName(), key);
+							log.debug("{} - load {}", Thread.currentThread().getName(), key);
 							return new ValueClass(context.getValue());
 						}
 
-						// optional
+						// optional override of the loadAll method
+						@Override
 						public Map<String, ValueClass> loadAll(LoaderContext context, Iterable<? extends String> keys) throws Exception {
-							log.info("{} - loadAll [{}]", Thread.currentThread().getName(), Joiner.on(", ").join(keys));
+							log.debug("{} - loadAll [{}]", Thread.currentThread().getName(), Joiner.on(", ").join(keys));
 							return super.loadAll(context, keys);
 						}
 					}));
@@ -126,6 +136,7 @@ public class CacheTest2 {
 
 			@Override
 			public Map<String, ? extends ValueClass> doGetAll(Iterable<? extends String> request) throws Exception {
+				// cannot pass object(s) to the loader
 				return cache.getAll(request);
 			}
 		});
@@ -138,6 +149,7 @@ public class CacheTest2 {
 
 			@Override
 			public Map<String, ? extends ValueClass> doGetAll(Iterable<? extends String> request) throws Exception {
+				// possible to pass a complex object to the loader
 				return contextedCache.getAll(new LoaderContext(), request);
 			}
 		});
@@ -145,7 +157,7 @@ public class CacheTest2 {
 
 	private static void test(final CacheTester<String, ValueClass> tester) throws InterruptedException, ExecutionException {
 		// do parallel testing
-		ExecutorService e = Executors.newFixedThreadPool(10, new ThreadFactory() {
+		ExecutorService executor = Executors.newFixedThreadPool(20, new ThreadFactory() {
 			private int counter = 0;
 
 			@Override
@@ -154,39 +166,41 @@ public class CacheTest2 {
 			}
 		});
 
+		// create a collection of keys
 		final List<String> keys = new ArrayList<String>();
-		for (int i = 0; i < 100; i++) {
+		for (int i = 0; i < 10; i++) {
 			keys.add("key" + i);
 		}
 
+		// create tasks for testing the cache
 		List<FutureTask<String>> tasks = new ArrayList<FutureTask<String>>();
 		for (int i = 0; i < 1000; i++) {
 			FutureTask<String> task = new FutureTask<String>(new Callable<String>() {
 				@Override
 				public String call() throws Exception {
 					Random r = new Random();
-					Thread.sleep(100 + r.nextInt(300));
+					// Thread.sleep(r.nextInt(2));
 
 					// generate a random request
 					Collections.shuffle(keys);
 					List<String> req = keys.subList(0, 1 + r.nextInt(keys.size() - 1));
 
-					log.info("{} - req: {}", Thread.currentThread().getName(), req);
+					log.debug("{} - req: {}", Thread.currentThread().getName(), req);
 					Stopwatch timer = new Stopwatch().start();
 					String result = Thread.currentThread().getName() + " - result: " + tester.doGetAll(req);
-					long time = timer.stop().elapsedMillis();
-					return result + " (" + time + ")";
+					return result + " (" + timer.stop().elapsedMillis() + ")";
 				}
 
 			});
-			e.execute(task);
+			executor.execute(task);
 			tasks.add(task);
 		}
 
+		// wait for worker threads for results
 		for (FutureTask<String> task : tasks)
-			log.info(task.get());
+			log.debug(task.get());
 
-		e.shutdown();
+		executor.shutdown();
 		log.info("{}", tester.getStats());
 	}
 }
