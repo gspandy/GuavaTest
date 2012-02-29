@@ -31,6 +31,10 @@ public class ContextedLoadingCache<K, V, C> {
 
 	}
 
+	private static interface ValueTransformer<T1, T2> {
+		public T2 transform(T1 value);
+	}
+
 	public static abstract class ContextedCacheLoader<K, V, C> extends CacheLoader<ContextedKey<K, C>, V> {
 
 		public abstract V load(C context, K key) throws Exception;
@@ -162,10 +166,6 @@ public class ContextedLoadingCache<K, V, C> {
 				};
 			}
 		};
-	}
-
-	private static interface ValueTransformer<T1, T2> {
-		public T2 transform(T1 value);
 	}
 
 	private static <K1, K2, V> Map<K2, V> transformMapKeys(final Map<K1, V> map, final ValueTransformer<K1, K2> keyTransformer) {

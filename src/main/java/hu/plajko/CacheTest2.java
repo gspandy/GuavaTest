@@ -91,7 +91,7 @@ public class CacheTest2 {
 				}
 			});
 
-	// "contexted" LoadingCache construction
+	// "contexted" LoadingCache construction, it's a wrapper class
 	private static ContextedLoadingCache<String, ValueClass, LoaderContext> contextedCache = //
 	new ContextedLoadingCache<String, ValueClass, LoaderContext>(//
 			CacheBuilder.newBuilder()//
@@ -153,11 +153,12 @@ public class CacheTest2 {
 				return contextedCache.getAll(new LoaderContext(), request);
 			}
 		});
+		
 	}
 
 	private static void test(final CacheTester<String, ValueClass> tester) throws InterruptedException, ExecutionException {
 		// do parallel testing
-		ExecutorService executor = Executors.newFixedThreadPool(20, new ThreadFactory() {
+		ExecutorService executor = Executors.newFixedThreadPool(10, new ThreadFactory() {
 			private int counter = 0;
 
 			@Override
@@ -168,18 +169,17 @@ public class CacheTest2 {
 
 		// create a collection of keys
 		final List<String> keys = new ArrayList<String>();
-		for (int i = 0; i < 10; i++) {
+		for (int i = 0; i < 100; i++) {
 			keys.add("key" + i);
 		}
 
 		// create tasks for testing the cache
 		List<FutureTask<String>> tasks = new ArrayList<FutureTask<String>>();
-		for (int i = 0; i < 1000; i++) {
+		for (int i = 0; i < 500; i++) {
 			FutureTask<String> task = new FutureTask<String>(new Callable<String>() {
 				@Override
 				public String call() throws Exception {
 					Random r = new Random();
-					// Thread.sleep(r.nextInt(2));
 
 					// generate a random request
 					Collections.shuffle(keys);
@@ -187,8 +187,11 @@ public class CacheTest2 {
 
 					log.debug("{} - req: {}", Thread.currentThread().getName(), req);
 					Stopwatch timer = new Stopwatch().start();
-					String result = Thread.currentThread().getName() + " - result: " + tester.doGetAll(req);
-					return result + " (" + timer.stop().elapsedMillis() + ")";
+					StringBuilder sb = //
+					new StringBuilder(Thread.currentThread().getName())//
+							.append(" - result: ")//
+							.append(tester.doGetAll(req));
+					return sb.append(" (").append(timer.stop().elapsedMillis()).append(")").toString();
 				}
 
 			});
