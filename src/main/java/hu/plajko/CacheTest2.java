@@ -1,8 +1,9 @@
 package hu.plajko;
 
+import hu.plajko.cache.ContextedCacheLoader;
+import hu.plajko.cache.ContextedKey;
 import hu.plajko.cache.ContextedLoadingCache;
-import hu.plajko.cache.ContextedLoadingCache.ContextedCacheLoader;
-import hu.plajko.cache.ContextedLoadingCache.ContextedRemovalListener;
+import hu.plajko.cache.ContextedRemovalListener;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -55,7 +56,7 @@ public class CacheTest2 {
 
 		@Override
 		public String toString() {
-			return name + "(" + timer + ")";
+			return new StringBuilder(name).append("(").append(timer).append(")").toString();
 		}
 	}
 
@@ -127,33 +128,37 @@ public class CacheTest2 {
 	}
 
 	public static void main(String[] args) throws Exception {
-
-		test(new CacheTester<String, ValueClass>() {
-			@Override
-			public CacheStats getStats() {
-				return cache.stats();
-			}
-
-			@Override
-			public Map<String, ? extends ValueClass> doGetAll(Iterable<? extends String> request) throws Exception {
-				// cannot pass object(s) to the loader
-				return cache.getAll(request);
-			}
-		});
-
-		test(new CacheTester<String, ValueClass>() {
-			@Override
-			public CacheStats getStats() {
-				return contextedCache.stats();
-			}
-
-			@Override
-			public Map<String, ? extends ValueClass> doGetAll(Iterable<? extends String> request) throws Exception {
-				// possible to pass a complex object to the loader
-				return contextedCache.getAll(new LoaderContext(), request);
-			}
-		});
 		
+		
+		for (int i = 0; i < 20; i++) {
+			log.info("round {}", i + 1);
+
+			test(new CacheTester<String, ValueClass>() {
+				@Override
+				public CacheStats getStats() {
+					return contextedCache.stats();
+				}
+
+				@Override
+				public Map<String, ? extends ValueClass> doGetAll(Iterable<? extends String> request) throws Exception {
+					// possible to pass a complex object to the loader
+					return contextedCache.getAll(new LoaderContext(), request);
+				}
+			});
+
+			test(new CacheTester<String, ValueClass>() {
+				@Override
+				public CacheStats getStats() {
+					return cache.stats();
+				}
+
+				@Override
+				public Map<String, ? extends ValueClass> doGetAll(Iterable<? extends String> request) throws Exception {
+					// cannot pass object(s) to the loader
+					return cache.getAll(request);
+				}
+			});
+		}
 	}
 
 	private static void test(final CacheTester<String, ValueClass> tester) throws InterruptedException, ExecutionException {
