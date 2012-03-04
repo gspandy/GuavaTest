@@ -1,7 +1,6 @@
 package hu.plajko;
 
 import hu.plajko.cache.ContextedCacheLoader;
-import hu.plajko.cache.ContextedKey;
 import hu.plajko.cache.ContextedLoadingCache;
 import hu.plajko.cache.ContextedRemovalListener;
 
@@ -21,12 +20,12 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.base.Joiner;
 import com.google.common.base.Stopwatch;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.CacheStats;
 import com.google.common.cache.LoadingCache;
+import com.google.common.cache.RemovalCause;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 
@@ -73,7 +72,7 @@ public class CacheTest2 {
 					new RemovalListener<String, ValueClass>() {
 						@Override
 						public void onRemoval(RemovalNotification<String, ValueClass> notification) {
-							log.debug("remove {}", notification);
+							log.debug("remove {}={}({})", new Object[] { notification.getKey(), notification.getValue(), notification.getCause() });
 						}
 					})//
 			.build(//
@@ -87,7 +86,7 @@ public class CacheTest2 {
 				// optional override of the loadAll method
 				@Override
 				public Map<String, ValueClass> loadAll(Iterable<? extends String> keys) throws Exception {
-					log.debug("{} - loadAll [{}]", Thread.currentThread().getName(), Joiner.on(", ").join(keys));
+					log.debug("{} - loadAll {}", Thread.currentThread().getName(), keys);
 					return super.loadAll(keys);
 				}
 			});
@@ -101,8 +100,8 @@ public class CacheTest2 {
 					.removalListener(// optional removal listener
 							new ContextedRemovalListener<String, ValueClass, LoaderContext>() {
 								@Override
-								public void onRemoval(LoaderContext context, String key, ValueClass value) {
-									log.debug("remove {}={}", key, value);
+								public void onRemoval(LoaderContext context, String key, ValueClass value, RemovalCause cause) {
+									log.debug("remove {}={}({})", new Object[] { key, value, cause });
 								}
 							})//
 					.build(//
@@ -116,7 +115,7 @@ public class CacheTest2 {
 						// optional override of the loadAll method
 						@Override
 						public Map<String, ValueClass> loadAll(LoaderContext context, Iterable<? extends String> keys) throws Exception {
-							log.debug("{} - loadAll [{}]", Thread.currentThread().getName(), Joiner.on(", ").join(keys));
+							log.debug("{} - loadAll {}", Thread.currentThread().getName(), keys);
 							return super.loadAll(context, keys);
 						}
 					}));
@@ -128,9 +127,8 @@ public class CacheTest2 {
 	}
 
 	public static void main(String[] args) throws Exception {
-		
-		
-		for (int i = 0; i < 20; i++) {
+
+		for (int i = 0; i < 1; i++) {
 			log.info("round {}", i + 1);
 
 			test(new CacheTester<String, ValueClass>() {
@@ -174,13 +172,13 @@ public class CacheTest2 {
 
 		// create a collection of keys
 		final List<String> keys = new ArrayList<String>();
-		for (int i = 0; i < 100; i++) {
+		for (int i = 0; i < 5; i++) {
 			keys.add("key" + i);
 		}
 
 		// create tasks for testing the cache
 		List<FutureTask<String>> tasks = new ArrayList<FutureTask<String>>();
-		for (int i = 0; i < 500; i++) {
+		for (int i = 0; i < 100; i++) {
 			FutureTask<String> task = new FutureTask<String>(new Callable<String>() {
 				@Override
 				public String call() throws Exception {
